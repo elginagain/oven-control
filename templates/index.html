@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Oven Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        button { font-size: 24px; margin: 10px; padding: 10px; }
+        input { font-size: 24px; width: 100px; text-align: center; }
+        canvas { width: 100%; max-width: 400px; height: auto; }
+    </style>
+</head>
+<body>
+    <h1>Oven Controller</h1>
+    <p>Current Temp: <span id="current_temp">--</span>°F</p>
+    <canvas id="tempChart"></canvas>
+    <br>
+    <input type="number" id="set_temp" min="0" max="500" value="450">
+    <button onclick="setTemperature()">Set Temp</button>
+    <br>
+    <button onclick="startOven()">Start Oven</button>
+    <button onclick="stopOven()">Stop Oven</button>
+    <br>
+    <button onclick="toggleLight()">Toggle Lights</button>
+    <br>
+    <button onclick="shutdown()">Shutdown Pi</button>
+
+    <script>
+        var socket = io();
+        socket.on('update_temp', function(data) {
+            document.getElementById("current_temp").innerText = data.temp;
+        });
+
+        function setTemperature() {
+            var temp = document.getElementById("set_temp").value;
+            fetch('/set_temp', { method: 'POST', body: JSON.stringify({ temp }), headers: { 'Content-Type': 'application/json' } });
+        }
+
+        function startOven() {
+            fetch('/start_oven', { method: 'POST' });
+        }
+
+        function stopOven() {
+            fetch('/stop_oven', { method: 'POST' });
+        }
+
+        function toggleLight() {
+            fetch('/toggle_light', { method: 'POST' });
+        }
+
+        function shutdown() {
+            fetch('/shutdown', { method: 'POST' });
+        }
+    </script>
+</body>
+</html>

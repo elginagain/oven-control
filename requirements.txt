@@ -1,0 +1,8 @@
+flask
+flask-socketio
+gevent
+gevent-websocket
+simple-pid
+adafruit-circuitpython-max31855
+matplotlib
+RPi.GPIO; platform_system == "Linux"
