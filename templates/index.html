@@ -2,57 +2,74 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Oven Controller</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oven Control</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
-        button { font-size: 24px; margin: 10px; padding: 10px; }
-        input { font-size: 24px; width: 100px; text-align: center; }
-        canvas { width: 100%; max-width: 400px; height: auto; }
+        .container { margin-top: 50px; }
+        .status { font-size: 24px; margin: 10px 0; }
+        button { padding: 10px; font-size: 18px; margin: 10px; cursor: pointer; }
     </style>
-</head>
-<body>
-    <h1>Oven Controller</h1>
-    <p>Current Temp: <span id="current_temp">--</span>°F</p>
-    <canvas id="tempChart"></canvas>
-    <br>
-    <input type="number" id="set_temp" min="0" max="500" value="450">
-    <button onclick="setTemperature()">Set Temp</button>
-    <br>
-    <button onclick="startOven()">Start Oven</button>
-    <button onclick="stopOven()">Stop Oven</button>
-    <br>
-    <button onclick="toggleLight()">Toggle Lights</button>
-    <br>
-    <button onclick="shutdown()">Shutdown Pi</button>
-
     <script>
-        var socket = io();
-        socket.on('update_temp', function(data) {
-            document.getElementById("current_temp").innerText = data.temp;
-        });
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('temperature').innerText = data.temperature.toFixed(1) + " °F";
+                    document.getElementById('target-temp').innerText = data.target_temperature + " °F";
+                    document.getElementById('oven-status').innerText = data.oven_on ? "ON" : "OFF";
+                    document.getElementById('light-status').innerText = data.light_on ? "ON" : "OFF";
+                })
+                .catch(error => console.error('Error fetching status:', error));
+        }
 
         function setTemperature() {
-            var temp = document.getElementById("set_temp").value;
-            fetch('/set_temp', { method: 'POST', body: JSON.stringify({ temp }), headers: { 'Content-Type': 'application/json' } });
+            let temp = prompt("Enter new target temperature (0-500°F):");
+            if (temp !== null) {
+                fetch('/set_temperature', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temperature: parseInt(temp) })
+                }).then(updateStatus);
+            }
         }
 
-        function startOven() {
-            fetch('/start_oven', { method: 'POST' });
-        }
-
-        function stopOven() {
-            fetch('/stop_oven', { method: 'POST' });
+        function togglePower() {
+            fetch('/power', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oven_on: document.getElementById('oven-status').innerText === "OFF" })
+            }).then(updateStatus);
         }
 
         function toggleLight() {
-            fetch('/toggle_light', { method: 'POST' });
+            fetch('/toggle_light', { method: 'POST' }).then(updateStatus);
         }
 
-        function shutdown() {
+        setInterval(updateStatus, 2000);
+        window.onload = updateStatus;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Oven Control</h1>
+        <button onclick="shutdownSystem()" style="position: absolute; top: 10px; left: 10px; padding: 10px; font-size: 16px;">⏻ Shutdown</button>
+
+<script>
+    function shutdownSystem() {
+        if (confirm("Are you sure you want to shut down the system?")) {
             fetch('/shutdown', { method: 'POST' });
         }
-    </script>
+    }
+</script>
+        <button onclick="window.location.href='/settings'" style="position: absolute; top: 10px; right: 10px; padding: 10px; font-size: 16px;">⚙ Settings</button>
+        <p class="status">Current Temperature: <span id="temperature">--</span></p>
+        <p class="status">Target Temperature: <span id="target-temp">450</span></p>
+        <button onclick="setTemperature()">Set Temperature</button>
+        <p class="status">Oven: <span id="oven-status">OFF</span></p>
+        <button onclick="togglePower()">Toggle Oven</button>
+        <p class="status">Light: <span id="light-status">OFF</span></p>
+        <button onclick="toggleLight()">Toggle Light</button>
+    </div>
 </body>
 </html>
