@@ -45,34 +45,40 @@ else:
     LIGHT_PIN = None
 
 # ==============================
-# ✅ SPI / Thermocouple Setup
+# ✅ SPI / Thermocouple Setup (Fixed)
 # ==============================
 
 if sys.platform.startswith("linux"):
-    try:
-        import Adafruit_GPIO.SPI as SPI
-    except ImportError:
-        import adafruit_blinka.microcontroller.generic_linux.spi as SPI
+    import spidev  # Correct library for Raspberry Pi SPI communication
 
-    import adafruit_max31855 as MAX31855
-    sensor = MAX31855.MAX31855(spi=SPI.SpiDev(0, 0), cs=0)  # Use actual sensor
+    # SPI Configuration for MAX31855
+    SPI_BUS = 0
+    SPI_DEVICE = 0
+
+    def read_max31855():
+        """Reads temperature from MAX31855 using SPI."""
+        spi = spidev.SpiDev()
+        spi.open(SPI_BUS, SPI_DEVICE)
+        spi.max_speed_hz = 5000000  # Set SPI clock speed
+
+        raw = spi.readbytes(4)  # Read 4 bytes from the sensor
+        spi.close()
+
+        # Parse raw data and convert to temperature
+        temp_raw = ((raw[0] << 24) | (raw[1] << 16) | (raw[2] << 8) | raw[3]) >> 18
+        if temp_raw & 0x2000:  # Check for negative temperature
+            temp_raw -= 16384
+
+        temp_c = temp_raw * 0.25  # Convert to Celsius
+        temp_f = temp_c * 9.0 / 5.0 + 32.0  # Convert to Fahrenheit
+        return temp_f  # Return Fahrenheit
 
 else:
-    # ✅ Mock SPI & MAX31855 for Windows development
-    class MockSPI:
-        class SpiDev:
-            def __init__(self, port, device): pass
-            def open(self, port, device): pass
-            def max_speed_hz(self, speed): pass
-            def xfer2(self, data): return [0] * len(data)  # Return dummy data
-
-    SPI = MockSPI  # Assign mock SPI class
-
+    # ✅ Mock MAX31855 sensor for Windows development
     class MockMAX31855:
-        def readTempC(self): return 25.0  # Dummy Celsius value
-        def readTempF(self): return 77.0  # Dummy Fahrenheit value
+        def read_temp_f(self): return 77.0  # Dummy temperature for testing
 
-    sensor = MockMAX31855()  # Use mock sensor
+    read_max31855 = MockMAX31855().read_temp_f  # Assign mock function
 
 # ==============================
 # ✅ PID Control Setup
@@ -98,10 +104,14 @@ auto_tuning = False
 app = Flask(__name__)
 
 def read_temperature():
-    """ Continuously read temperature from the MAX31855 sensor. """
+    """ Continuously read temperature from the MAX31855 sensor and update global variable. """
     global current_temperature
     while True:
-        current_temperature = sensor.readTempC() * 9.0 / 5.0 + 32.0  # Convert to Fahrenheit
+        try:
+            current_temperature = read_max31855()  # Use new SPI function
+        except Exception as e:
+            print(f"❌ Error reading temperature: {e}")
+            current_temperature = 0.0  # Set to 0 if read fails
         time.sleep(2)
 
 @app.route('/')
