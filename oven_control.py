@@ -1,6 +1,51 @@
-import lgpio
-import Adafruit_GPIO.SPI as SPI
-import Adafruit_MAX31855.MAX31855 as MAX31855
+import sys
+
+# Only import lgpio on a Raspberry Pi (Linux system)
+if sys.platform.startswith("linux"):
+    import lgpio
+    gpio_handle = lgpio.gpiochip_open(0)
+    SSR_PIN = 17  # GPIO pin for SSR
+    LIGHT_PIN = 27  # GPIO pin for light relay
+    lgpio.gpio_claim_output(gpio_handle, SSR_PIN)
+    lgpio.gpio_claim_output(gpio_handle, LIGHT_PIN)
+else:
+    # Create a mock lgpio class for Windows compatibility
+    class MockGPIO:
+        def gpiochip_open(self, x): return None
+        def gpio_claim_output(self, chip, pin): pass
+        def gpio_write(self, chip, pin, value): pass
+
+    lgpio = MockGPIO()
+    gpio_handle = None
+    SSR_PIN = None
+    LIGHT_PIN = None
+
+
+import sys
+
+if sys.platform.startswith("linux"):  # Use real SPI on Raspberry Pi
+    try:
+        import Adafruit_GPIO.SPI as SPI
+    except ImportError:
+        import adafruit_blinka.microcontroller.generic_linux.spi as SPI
+else:
+    # Create a mock SPI class for Windows development
+    class MockSPI:
+        class SpiDev:
+            def __init__(self, port, device):
+                pass
+            def open(self, port, device):
+                pass
+            def max_speed_hz(self, speed):
+                pass
+            def xfer2(self, data):
+                return [0] * len(data)  # Return dummy data
+
+    SPI = MockSPI  # Assign the class to SPI
+
+
+
+import adafruit_max31855 as MAX31855
 from flask import Flask, request, jsonify, render_template
 from simple_pid import PID
 import threading
@@ -16,7 +61,17 @@ lgpio.gpio_claim_output(gpio_handle, LIGHT_PIN)
 # Thermocouple setup
 SPI_PORT = 0
 SPI_DEVICE = 0
-sensor = MAX31855.MAX31855(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE))
+if sys.platform.startswith("linux"):
+    sensor = MAX31855.MAX31855(spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE), cs=0)
+else:
+    # Mock the MAX31855 sensor for Windows
+    class MockMAX31855:
+        def readTempC(self):
+            return 25.0  # Return dummy temperature
+        def readTempF(self):
+            return 77.0  # Dummy value for Fahrenheit
+
+    sensor = MockMAX31855()
 
 # PID setup
 pid = PID(10, 5, 1, setpoint=450)
